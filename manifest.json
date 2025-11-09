@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Enhance your Plex experience with Picture-in-Picture, auto intro/credit skipper, and more!",
   "permissions": [
-    "storage"
+    "storage",
+    "tabs"
   ],
   "action": {
     "default_popup": "popup.html",

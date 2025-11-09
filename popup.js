@@ -68,6 +68,9 @@ const elements = {
   playNextCard: document.querySelector('[data-feature="playnext"]'),
   customSkipCard: document.querySelector('[data-feature="customskip"]'),
 
+  // Status badge
+  statusBadge: document.getElementById('statusBadge'),
+
   // Other
   toast: document.getElementById('toast'),
   resetAll: document.getElementById('resetAll')
@@ -106,6 +109,31 @@ function showToast(message = 'Settings saved!', duration = 2000) {
   setTimeout(() => {
     toast.classList.remove('show');
   }, duration);
+}
+
+/**
+ * Check if Plex is running in any tab and update status badge
+ */
+async function updatePlexStatus() {
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://app.plex.tv/*' });
+    const statusDot = elements.statusBadge.querySelector('.status-dot');
+    const statusText = elements.statusBadge.querySelector('.status-text');
+
+    if (tabs && tabs.length > 0) {
+      // Plex is running
+      statusDot.classList.remove('inactive');
+      statusDot.classList.add('active');
+      statusText.textContent = 'Active';
+    } else {
+      // Plex is not running
+      statusDot.classList.remove('active');
+      statusDot.classList.add('inactive');
+      statusText.textContent = 'Inactive';
+    }
+  } catch (error) {
+    console.error('[Plex Toolkit] Error checking Plex status:', error);
+  }
 }
 
 /**
@@ -442,6 +470,9 @@ function init() {
 
   // Initialize event listeners
   initEventListeners();
+
+  // Update Plex status
+  updatePlexStatus();
 
   // Add entrance animation
   document.body.style.opacity = '0';

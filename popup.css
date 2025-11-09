@@ -173,7 +173,19 @@ body {
   border-radius: 50%;
   background: var(--success);
   box-shadow: 0 0 8px var(--success);
+  transition: all 0.3s ease;
+}
+
+.status-dot.active {
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
   animation: statusPulse 2s ease-in-out infinite;
+}
+
+.status-dot.inactive {
+  background: #666;
+  box-shadow: 0 0 4px rgba(102, 102, 102, 0.3);
+  animation: none;
 }
 
 @keyframes statusPulse {
