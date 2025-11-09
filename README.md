@@ -13,11 +13,25 @@ A Chrome extension that enhances your Plex Web App experience with Picture-in-Pi
 - Automatically clicks the "Skip Intro" button when it appears
 - Configurable delay (0-10000ms) before skipping
 - Can be toggled on/off independently
+- **Requires PlexPass subscription**
 
 ### Auto Skip Credits
 - Automatically clicks the "Skip Credits" button at the end of episodes
 - Configurable delay (0-10000ms) before skipping
 - Can be toggled on/off independently
+- **Requires PlexPass subscription**
+
+### Auto-Play Next Episode
+- Automatically plays the next episode when the current one ends
+- Works seamlessly with auto-skip features
+- Can be toggled on/off independently
+
+### Custom Skip Controls
+- Replaces Plex's default 10s/30s skip buttons with customizable skip times
+- Adjust skip backward time (5-90 seconds, default: 15s)
+- Adjust skip forward time (5-90 seconds, default: 15s)
+- Visual indicators show your custom skip values on the player controls
+- Settings persist across sessions
 
 ## Installation
 
@@ -41,8 +55,10 @@ A Chrome extension that enhances your Plex Web App experience with Picture-in-Pi
 Click the extension icon in your Chrome toolbar to open the settings popup where you can:
 
 - **Toggle Picture-in-Picture**: Enable/disable the PIP button
-- **Toggle Auto Skip Intro**: Enable/disable automatic intro skipping
-- **Toggle Auto Skip Credits**: Enable/disable automatic credit skipping
+- **Toggle Auto Skip Intro**: Enable/disable automatic intro skipping (PlexPass required)
+- **Toggle Auto Skip Credits**: Enable/disable automatic credit skipping (PlexPass required)
+- **Toggle Auto-Play Next Episode**: Enable/disable automatic playback of next episode
+- **Customize Skip Controls**: Set custom skip backward/forward times (5-90 seconds)
 - **Set Delays**: Configure delays (in milliseconds) before auto-skipping
 - **Reset Delays**: Quickly reset delay values to 0
 
@@ -82,10 +98,12 @@ This extension was inspired by and learned from:
 
 ### v1.0.0 (Initial Release)
 - Picture-in-Picture support
-- Auto skip intro functionality
-- Auto skip credits functionality
-- Configurable delays
-- Settings popup interface
+- Auto skip intro functionality (PlexPass required)
+- Auto skip credits functionality (PlexPass required)
+- Auto-play next episode
+- Custom skip controls (5-90 seconds, default 15s)
+- Configurable delays for auto-skip features
+- Settings popup interface with custom slider controls
 
 ## License
 
