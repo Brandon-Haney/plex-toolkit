@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Plex Toolkit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Enhance your Plex experience with Picture-in-Picture, auto intro/credit skipper, and more!",
   "permissions": [
     "storage",
