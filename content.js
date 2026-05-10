@@ -52,6 +52,7 @@ let lastCustomSkipTime = null; // Track the last time we performed a custom skip
 let skipDebounceTimer = null; // Debounce timer for skip operations
 let videoSeekingHandler = null; // Handler for video seeking events
 let expectedSeekTime = null; // The time we expect after a custom skip
+let skipIndicatorState = null; // Active fill-indicator: { timer, indicator, mousemoveHandler }
 
 // ========================================
 // Utility Functions
@@ -228,6 +229,35 @@ function injectPIPStyles() {
       border-right: 5px solid transparent;
       border-top: 5px solid rgba(0, 0, 0, 0.9);
     }
+
+    .plex-toolkit-skip-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      margin-right: 8px;
+      flex-shrink: 0;
+      vertical-align: middle;
+      pointer-events: none;
+    }
+
+    .plex-toolkit-skip-indicator svg {
+      display: block;
+      overflow: visible;
+    }
+
+    .plex-toolkit-skip-indicator .plex-toolkit-skip-track {
+      stroke: currentColor;
+      stroke-opacity: 0.3;
+      fill: none;
+    }
+
+    .plex-toolkit-skip-indicator .plex-toolkit-skip-fill {
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -357,28 +387,103 @@ function simulateClick(element) {
 }
 
 /**
- * Click the skip button with optional delay
+ * Tear down the skip fill indicator (clear timer, remove DOM, detach listeners).
+ * Safe to call when no indicator is active.
+ */
+function cleanupSkipIndicator() {
+  if (!skipIndicatorState) return;
+  clearTimeout(skipIndicatorState.timer);
+  document.removeEventListener('mousemove', skipIndicatorState.mousemoveHandler, true);
+  if (skipIndicatorState.indicator && skipIndicatorState.indicator.parentNode) {
+    skipIndicatorState.indicator.remove();
+  }
+  skipIndicatorState = null;
+}
+
+/**
+ * Render a circular fill indicator inside the skip button that animates
+ * from empty to full over `durationMs`, then invokes onComplete.
+ * Cancels (without invoking onComplete) if the user moves the mouse.
+ */
+function showSkipIndicator(button, durationMs, onComplete) {
+  cleanupSkipIndicator();
+
+  const radius = 8;
+  const circumference = 2 * Math.PI * radius;
+
+  const indicator = document.createElement('span');
+  indicator.className = 'plex-toolkit-skip-indicator';
+  indicator.innerHTML = `
+    <svg viewBox="0 0 20 20" width="18" height="18">
+      <circle class="plex-toolkit-skip-track" cx="10" cy="10" r="${radius}" stroke-width="2"/>
+      <circle class="plex-toolkit-skip-fill" cx="10" cy="10" r="${radius}" stroke-width="2.5"
+              stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}"
+              transform="rotate(-90 10 10)"/>
+    </svg>
+  `;
+  button.prepend(indicator);
+
+  const fillCircle = indicator.querySelector('.plex-toolkit-skip-fill');
+  // Force reflow so the transition starts from the initial dashoffset.
+  void indicator.offsetWidth;
+  fillCircle.style.transition = `stroke-dashoffset ${durationMs}ms linear`;
+  fillCircle.style.strokeDashoffset = '0';
+
+  // Threshold avoids spurious cancellations from a single phantom mousemove
+  // when the cursor was already inside the player area.
+  const CANCEL_THRESHOLD_SQ = 64; // 8px squared
+  let baseline = null;
+  const mousemoveHandler = (e) => {
+    if (!baseline) {
+      baseline = { x: e.clientX, y: e.clientY };
+      return;
+    }
+    const dx = e.clientX - baseline.x;
+    const dy = e.clientY - baseline.y;
+    if (dx * dx + dy * dy > CANCEL_THRESHOLD_SQ) {
+      console.log('[Plex Toolkit] Skip cancelled by mouse movement');
+      cleanupSkipIndicator();
+    }
+  };
+  document.addEventListener('mousemove', mousemoveHandler, true);
+
+  const timer = setTimeout(() => {
+    cleanupSkipIndicator();
+    onComplete();
+  }, durationMs);
+
+  skipIndicatorState = { timer, indicator, mousemoveHandler };
+}
+
+/**
+ * Click the skip button with optional delay.
+ * If delay > 0, shows a circular fill indicator that the user can cancel
+ * by moving the mouse (mirrors Plex iOS skip prompt UX).
  */
 function clickSkipButton(button, delay = 0) {
-  setTimeout(() => {
+  const performClick = () => {
     if (!button || !isElementVisible(button)) {
       console.log('[Plex Toolkit] Skip button no longer visible, aborting click');
       return;
     }
-
-    // Focus the button if it's not already focused
     if (!button.classList.contains('isFocused')) {
       button.focus();
     }
-
-    // Use simulated click for better compatibility
     simulateClick(button);
-
-    // Mark this button as clicked
     lastSkipButtonClicked = button;
-
     console.log('[Plex Toolkit] Skip button clicked successfully');
-  }, delay);
+  };
+
+  if (delay <= 0) {
+    setTimeout(performClick, 0);
+    return;
+  }
+
+  // Pre-mark so the 250ms tick loop doesn't keep re-scheduling during the fill.
+  // If the user cancels via mousemove the button stays marked, matching iOS
+  // behavior where the prompt is dismissed for that occurrence.
+  lastSkipButtonClicked = button;
+  showSkipIndicator(button, delay, performClick);
 }
 
 /**
@@ -393,6 +498,7 @@ function handleSkipButtons() {
       console.log('[Plex Toolkit] Skip button disappeared, resetting tracking');
       skipButtonVisible = false;
       lastSkipButtonClicked = null;
+      cleanupSkipIndicator();
     }
     return;
   }
@@ -904,6 +1010,9 @@ async function init() {
   // Load settings
   await loadSettings();
   console.log('[Plex Toolkit] Settings loaded:', settings);
+
+  // Inject styles up-front so the skip indicator works even when PIP is disabled.
+  injectPIPStyles();
 
   // Listen for settings changes
   chrome.storage.onChanged.addListener((changes, area) => {
