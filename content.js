@@ -234,8 +234,8 @@ function injectPIPStyles() {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 18px;
-      height: 18px;
+      width: 26px;
+      height: 26px;
       margin-right: 8px;
       flex-shrink: 0;
       vertical-align: middle;
@@ -254,9 +254,16 @@ function injectPIPStyles() {
     }
 
     .plex-toolkit-skip-indicator .plex-toolkit-skip-fill {
-      stroke: currentColor;
+      stroke: #e5a00d;
       fill: none;
       stroke-linecap: round;
+    }
+
+    .plex-toolkit-skip-indicator .plex-toolkit-skip-count {
+      fill: currentColor;
+      font-weight: 700;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
     }
   `;
   document.head.appendChild(style);
@@ -393,6 +400,7 @@ function simulateClick(element) {
 function cleanupSkipIndicator() {
   if (!skipIndicatorState) return;
   clearTimeout(skipIndicatorState.timer);
+  if (skipIndicatorState.countRafId) cancelAnimationFrame(skipIndicatorState.countRafId);
   document.removeEventListener('mousemove', skipIndicatorState.mousemoveHandler, true);
   if (skipIndicatorState.indicator && skipIndicatorState.indicator.parentNode) {
     skipIndicatorState.indicator.remove();
@@ -408,26 +416,40 @@ function cleanupSkipIndicator() {
 function showSkipIndicator(button, durationMs, onComplete) {
   cleanupSkipIndicator();
 
-  const radius = 8;
+  const radius = 11;
   const circumference = 2 * Math.PI * radius;
 
   const indicator = document.createElement('span');
   indicator.className = 'plex-toolkit-skip-indicator';
   indicator.innerHTML = `
-    <svg viewBox="0 0 20 20" width="18" height="18">
-      <circle class="plex-toolkit-skip-track" cx="10" cy="10" r="${radius}" stroke-width="2"/>
-      <circle class="plex-toolkit-skip-fill" cx="10" cy="10" r="${radius}" stroke-width="2.5"
+    <svg viewBox="0 0 28 28" width="26" height="26">
+      <circle class="plex-toolkit-skip-track" cx="14" cy="14" r="${radius}" stroke-width="2"/>
+      <circle class="plex-toolkit-skip-fill" cx="14" cy="14" r="${radius}" stroke-width="2.5"
               stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}"
-              transform="rotate(-90 10 10)"/>
+              transform="rotate(-90 14 14)"/>
+      <text class="plex-toolkit-skip-count" x="14" y="14"
+            text-anchor="middle" dominant-baseline="central">${Math.ceil(durationMs / 1000)}</text>
     </svg>
   `;
   button.prepend(indicator);
 
   const fillCircle = indicator.querySelector('.plex-toolkit-skip-fill');
+  const countText = indicator.querySelector('.plex-toolkit-skip-count');
   // Force reflow so the transition starts from the initial dashoffset.
   void indicator.offsetWidth;
   fillCircle.style.transition = `stroke-dashoffset ${durationMs}ms linear`;
   fillCircle.style.strokeDashoffset = '0';
+
+  const endTime = performance.now() + durationMs;
+  const tickCount = () => {
+    const remaining = endTime - performance.now();
+    const next = Math.max(1, Math.ceil(remaining / 1000));
+    if (countText.textContent !== String(next)) countText.textContent = String(next);
+    if (remaining > 0 && skipIndicatorState) {
+      skipIndicatorState.countRafId = requestAnimationFrame(tickCount);
+    }
+  };
+  const countRafId = requestAnimationFrame(tickCount);
 
   // Threshold avoids spurious cancellations from a single phantom mousemove
   // when the cursor was already inside the player area.
@@ -452,7 +474,7 @@ function showSkipIndicator(button, durationMs, onComplete) {
     onComplete();
   }, durationMs);
 
-  skipIndicatorState = { timer, indicator, mousemoveHandler };
+  skipIndicatorState = { timer, indicator, mousemoveHandler, countRafId };
 }
 
 /**
