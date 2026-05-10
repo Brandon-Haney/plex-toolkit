@@ -12,14 +12,14 @@ A Chrome extension that enhances your Plex Web App experience with Picture-in-Pi
 ### Auto Skip Intro
 - Automatically clicks the "Skip Intro" button when it appears
 - Configurable delay (0-10000ms) before skipping
-- When a delay is set, a Plex-orange progress ring fills inside the button with a live seconds countdown; move the mouse to cancel the auto-skip
+- When a delay is set, a Plex-orange progress ring fills inside the button with a live seconds countdown; hover the button to pause the countdown, move away to resume
 - Can be toggled on/off independently
 - **Requires PlexPass subscription**
 
 ### Auto Skip Credits
 - Automatically clicks the "Skip Credits" button at the end of episodes
 - Configurable delay (0-10000ms) before skipping
-- Same fill-ring countdown and mouse-move cancel as Auto Skip Intro
+- Same fill-ring countdown and hover-to-pause behavior as Auto Skip Intro
 - Can be toggled on/off independently
 - **Requires PlexPass subscription**
 
@@ -100,7 +100,7 @@ This extension was inspired by and learned from:
 
 ### v1.1.0
 - Added fill-ring countdown indicator inside the Skip Intro/Skip Credits buttons when an auto-skip delay is configured
-- Move the mouse during the delay to cancel the auto-skip (mirrors Plex iOS)
+- Hover the skip button during the delay to pause the countdown; move away to resume (mirrors Plex iOS)
 - Extended intro, credits, and play-next delay sliders to 10 seconds
 
 ### v1.0.0 (Initial Release)

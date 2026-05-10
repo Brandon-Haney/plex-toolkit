@@ -399,9 +399,11 @@ function simulateClick(element) {
  */
 function cleanupSkipIndicator() {
   if (!skipIndicatorState) return;
-  clearTimeout(skipIndicatorState.timer);
+  if (skipIndicatorState.timer) clearTimeout(skipIndicatorState.timer);
   if (skipIndicatorState.countRafId) cancelAnimationFrame(skipIndicatorState.countRafId);
-  document.removeEventListener('mousemove', skipIndicatorState.mousemoveHandler, true);
+  if (skipIndicatorState.mousemoveHandler) {
+    document.removeEventListener('mousemove', skipIndicatorState.mousemoveHandler, true);
+  }
   if (skipIndicatorState.indicator && skipIndicatorState.indicator.parentNode) {
     skipIndicatorState.indicator.remove();
   }
@@ -410,14 +412,16 @@ function cleanupSkipIndicator() {
 
 /**
  * Render a circular fill indicator inside the skip button that animates
- * from empty to full over `durationMs`, then invokes onComplete.
- * Cancels (without invoking onComplete) if the user moves the mouse.
+ * from empty to full over `durationMs`, then invokes onComplete. Hovering
+ * the button (with an 8px padded hitbox) pauses the countdown; leaving
+ * resumes from where it left off.
  */
 function showSkipIndicator(button, durationMs, onComplete) {
   cleanupSkipIndicator();
 
   const radius = 11;
   const circumference = 2 * Math.PI * radius;
+  const HOVER_PAD = 8;
 
   const indicator = document.createElement('span');
   indicator.className = 'plex-toolkit-skip-indicator';
@@ -435,52 +439,98 @@ function showSkipIndicator(button, durationMs, onComplete) {
 
   const fillCircle = indicator.querySelector('.plex-toolkit-skip-fill');
   const countText = indicator.querySelector('.plex-toolkit-skip-count');
-  // Force reflow so the transition starts from the initial dashoffset.
+
+  let elapsedMs = 0;
+  let runStartedAt = performance.now();
+  let paused = false;
+
+  // Kick off the initial fill animation.
   void indicator.offsetWidth;
   fillCircle.style.transition = `stroke-dashoffset ${durationMs}ms linear`;
   fillCircle.style.strokeDashoffset = '0';
 
-  const endTime = performance.now() + durationMs;
+  skipIndicatorState = {
+    timer: null,
+    countRafId: null,
+    indicator,
+    mousemoveHandler: null,
+  };
+
+  const armTimer = (remaining) => {
+    skipIndicatorState.timer = setTimeout(() => {
+      cleanupSkipIndicator();
+      onComplete();
+    }, remaining);
+  };
+
   const tickCount = () => {
-    const remaining = endTime - performance.now();
-    const next = Math.max(1, Math.ceil(remaining / 1000));
-    if (countText.textContent !== String(next)) countText.textContent = String(next);
-    if (remaining > 0 && skipIndicatorState) {
+    if (!paused) {
+      const remaining = durationMs - (elapsedMs + (performance.now() - runStartedAt));
+      const next = Math.max(1, Math.ceil(remaining / 1000));
+      if (countText.textContent !== String(next)) countText.textContent = String(next);
+    }
+    if (skipIndicatorState) {
       skipIndicatorState.countRafId = requestAnimationFrame(tickCount);
     }
   };
-  const countRafId = requestAnimationFrame(tickCount);
 
-  // Threshold avoids spurious cancellations from a single phantom mousemove
-  // when the cursor was already inside the player area.
-  const CANCEL_THRESHOLD_SQ = 64; // 8px squared
-  let baseline = null;
+  const pause = () => {
+    if (paused) return;
+    paused = true;
+    elapsedMs += performance.now() - runStartedAt;
+    // Freeze the fill ring at its current visual position.
+    const frozen = getComputedStyle(fillCircle).strokeDashoffset;
+    fillCircle.style.transition = 'none';
+    fillCircle.style.strokeDashoffset = frozen;
+    clearTimeout(skipIndicatorState.timer);
+    skipIndicatorState.timer = null;
+  };
+
+  const resume = () => {
+    if (!paused) return;
+    paused = false;
+    runStartedAt = performance.now();
+    const remaining = Math.max(0, durationMs - elapsedMs);
+    // Force reflow so the new transition kicks off from the frozen offset.
+    void fillCircle.offsetWidth;
+    fillCircle.style.transition = `stroke-dashoffset ${remaining}ms linear`;
+    fillCircle.style.strokeDashoffset = '0';
+    armTimer(remaining);
+  };
+
+  let insideRegion = false;
   const mousemoveHandler = (e) => {
-    if (!baseline) {
-      baseline = { x: e.clientX, y: e.clientY };
-      return;
-    }
-    const dx = e.clientX - baseline.x;
-    const dy = e.clientY - baseline.y;
-    if (dx * dx + dy * dy > CANCEL_THRESHOLD_SQ) {
-      console.log('[Plex Toolkit] Skip cancelled by mouse movement');
-      cleanupSkipIndicator();
+    const r = button.getBoundingClientRect();
+    const inside =
+      e.clientX >= r.left - HOVER_PAD && e.clientX <= r.right + HOVER_PAD &&
+      e.clientY >= r.top  - HOVER_PAD && e.clientY <= r.bottom + HOVER_PAD;
+    if (inside && !insideRegion) {
+      insideRegion = true;
+      pause();
+    } else if (!inside && insideRegion) {
+      insideRegion = false;
+      resume();
     }
   };
   document.addEventListener('mousemove', mousemoveHandler, true);
+  skipIndicatorState.mousemoveHandler = mousemoveHandler;
 
-  const timer = setTimeout(() => {
-    cleanupSkipIndicator();
-    onComplete();
-  }, durationMs);
+  skipIndicatorState.countRafId = requestAnimationFrame(tickCount);
+  armTimer(durationMs);
 
-  skipIndicatorState = { timer, indicator, mousemoveHandler, countRafId };
+  // If the cursor is already parked on the button when the indicator appears,
+  // pause immediately so we don't auto-skip before the first mousemove fires.
+  if (button.matches(':hover')) {
+    insideRegion = true;
+    pause();
+  }
 }
 
 /**
  * Click the skip button with optional delay.
- * If delay > 0, shows a circular fill indicator that the user can cancel
- * by moving the mouse (mirrors Plex iOS skip prompt UX).
+ * If delay > 0, shows a circular fill indicator with a countdown; hovering
+ * the button pauses the countdown and moving away resumes it (mirrors Plex
+ * iOS skip prompt UX).
  */
 function clickSkipButton(button, delay = 0) {
   const performClick = () => {
